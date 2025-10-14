@@ -246,15 +246,19 @@ class MuscleTrackerApp:
         st.markdown("#### Step 2: Add Foods")
         user_foods = self.backend.get_user_foods(st.session_state.user.id)
         food_options = {f"({f.category}) {f.name} - {f.unit}": f for f in sorted(user_foods, key=lambda x: x.name)}
-
+        
+        # Define a callback to safely reset the quantity input's state
+        def reset_quantity_callback():
+            st.session_state.meal_item_quantity = 1.0
+            
         with st.form("add_food_to_meal_form"):
             c1, c2, c3 = st.columns([3, 1, 1])
             with c1:
                 selected_food_key = st.selectbox("Search and select a food item", options=list(food_options.keys()), label_visibility="collapsed")
             with c2:
-                quantity = st.number_input("Quantity", min_value=0.1, value=1.0, step=0.5, label_visibility="collapsed")
+                quantity = st.number_input("Quantity", min_value=0.1, value=1.0, step=0.5, label_visibility="collapsed", key="meal_item_quantity")
             with c3:
-                add_food_btn = st.form_submit_button("➕ Add", use_container_width=True)
+                add_food_btn = st.form_submit_button("➕ Add", use_container_width=True, on_click=reset_quantity_callback)
 
             if add_food_btn and selected_food_key:
                 selected_food = food_options[selected_food_key]
