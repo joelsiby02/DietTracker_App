@@ -68,7 +68,7 @@ class MuscleTrackerApp:
     def run(self):
         """Main application runner"""
         # Header
-        st.markdown('<h1 class="main-header">💪 Muscle Tracker</h1>', unsafe_allow_html=True)
+        st.markdown('<h1 class="main-header">💪 Diet Tracker</h1>', unsafe_allow_html=True)
         
         # Navigation
         if st.session_state.user:
