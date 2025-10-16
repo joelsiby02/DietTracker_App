@@ -169,46 +169,116 @@ class MuscleTrackerBackend:
         """Import foods from CSV file"""
         session = get_session()
         try:
-            df = pd.read_csv(csv_file_object)
+            # Use pandas to fill empty values with 0 for numeric columns
+            # and empty strings for others to prevent errors.
+            df = pd.read_csv(csv_file_object).fillna({'protein': 0.0, 'carbs': 0.0, 'fat': 0.0, 'category': 'Other', 'unit': 'unit'})
+
             required_columns = ['name', 'category', 'unit', 'protein', 'carbs', 'fat']
             
             if not all(col in df.columns for col in required_columns):
                 return False, "CSV missing required columns: name, category, unit, protein, carbs, fat"
             
+            # --- DESTRUCTIVE ACTION: Delete all existing foods for this user ---
+            session.query(Food).filter(Food.user_id == user_id).delete(synchronize_session=False)
+            
             imported_count = 0
+            imported_food_names = []
             for _, row in df.iterrows():
-                # Check if food already exists
-                existing = session.query(Food).filter(
-                    and_(
-                        Food.user_id == user_id,
-                        Food.name == row['name']
-                    )
-                ).first()
-                
-                if not existing:
-                    calories = self._calculate_calories(row['protein'], row['carbs'], row['fat'])
+                # Clean the input name: remove leading/trailing whitespace
+                food_name_from_csv = str(row['name']).strip()
+
+                # Since we deleted all previous foods, we can add every row from the CSV as a new food.
+                if food_name_from_csv: # Ensure the name is not empty
+                    # Ensure macros default to 0.0 if they are missing/NaN in the CSV
+                    protein = float(row.get('protein', 0.0) or 0.0)
+                    carbs = float(row.get('carbs', 0.0) or 0.0)
+                    fat = float(row.get('fat', 0.0) or 0.0)
+
+                    calories = self._calculate_calories(protein, carbs, fat)
+
                     food = Food(
                         user_id=user_id,
-                        name=row['name'],
+                        name=food_name_from_csv, # Use the cleaned name
                         category=row['category'],
                         unit=row['unit'],
-                        protein=float(row['protein']),
-                        carbs=float(row['carbs']),
-                        fat=float(row['fat']),
+                        protein=protein,
+                        carbs=carbs,
+                        fat=fat,
                         calories=calories
                     )
                     session.add(food)
                     imported_count += 1
+                    imported_food_names.append(food_name_from_csv)
             
             session.commit()
-            return True, f"Successfully imported {imported_count} new foods"
-        
+            message = f"Success! Your food list has been replaced with {imported_count} new food(s) from your file."
+            return True, (message, imported_food_names)
         except Exception as e:
             session.rollback()
             return False, f"Error importing foods: {str(e)}"
         finally:
             session.close()
     
+    def upsert_foods_from_csv(self, user_id, csv_file_object):
+        """
+        Adds or updates foods from a CSV file.
+        If a food with the same name exists, it's updated. Otherwise, it's added.
+        This is a non-destructive operation.
+        """
+        session = get_session()
+        try:
+            df = pd.read_csv(csv_file_object).fillna({'protein': 0.0, 'carbs': 0.0, 'fat': 0.0, 'category': 'Other', 'unit': 'unit'})
+            required_columns = ['name', 'category', 'unit', 'protein', 'carbs', 'fat']
+            if not all(col in df.columns for col in required_columns):
+                return False, "CSV missing required columns: name, category, unit, protein, carbs, fat"
+
+            added_count = 0
+            updated_count = 0
+            processed_food_names = []
+
+            for _, row in df.iterrows():
+                food_name_from_csv = str(row['name']).strip()
+                if not food_name_from_csv:
+                    continue
+
+                # Find existing food (case-insensitive)
+                existing_food = session.query(Food).filter(
+                    and_(
+                        Food.user_id == user_id,
+                        func.lower(Food.name) == food_name_from_csv.lower()
+                    )
+                ).first()
+
+                protein = float(row.get('protein', 0.0) or 0.0)
+                carbs = float(row.get('carbs', 0.0) or 0.0)
+                fat = float(row.get('fat', 0.0) or 0.0)
+                calories = self._calculate_calories(protein, carbs, fat)
+
+                if existing_food:
+                    # Update existing food
+                    existing_food.category = row['category']
+                    existing_food.unit = row['unit']
+                    existing_food.protein = protein
+                    existing_food.carbs = carbs
+                    existing_food.fat = fat
+                    existing_food.calories = calories
+                    updated_count += 1
+                else:
+                    # Add new food
+                    new_food = Food(user_id=user_id, name=food_name_from_csv, category=row['category'], unit=row['unit'], protein=protein, carbs=carbs, fat=fat, calories=calories)
+                    session.add(new_food)
+                    added_count += 1
+                processed_food_names.append(food_name_from_csv)
+            
+            session.commit()
+            message = f"Success! Added {added_count} new food(s) and updated {updated_count} existing one(s)."
+            return True, (message, processed_food_names)
+        except Exception as e:
+            session.rollback()
+            return False, f"Error processing CSV: {str(e)}"
+        finally:
+            session.close()
+
     # Meal Logging
     def log_meal(self, user_id, meal_type, meal_date, food_items):
         """Log a meal with multiple food items"""

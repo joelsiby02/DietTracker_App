@@ -64,8 +64,12 @@ class MuscleTrackerApp:
             st.session_state.meal_builder_items = []
         if 'form_success' not in st.session_state:
             st.session_state.form_success = False
+        if 'recently_imported_foods' not in st.session_state:
+            st.session_state.recently_imported_foods = None
         if 'reset_quantity' not in st.session_state:
             st.session_state.reset_quantity = False
+        if 'meal_item_quantity' not in st.session_state:
+            st.session_state.meal_item_quantity = 1.0
     
     def run(self):
         """Main application runner"""
@@ -154,6 +158,7 @@ class MuscleTrackerApp:
                 st.session_state.user = None
                 st.session_state.meal_items = []
                 st.session_state.meal_builder_items = []
+                st.session_state.recently_imported_foods = None
                 st.rerun()
         
         # Main content based on selection
@@ -252,8 +257,17 @@ class MuscleTrackerApp:
         # --- Step 2: Add Foods to the Meal ---
         st.markdown("#### Step 2: Add Foods")
         user_foods = self.backend.get_user_foods(st.session_state.user.id)
-        food_options = {f"({f.category}) {f.name} - {f.unit}": f for f in sorted(user_foods, key=lambda x: x.name)}
-        
+
+        # If foods were recently imported, filter the list to show only those.
+        # Otherwise, show all user foods.
+        if st.session_state.recently_imported_foods:
+            filtered_foods = [f for f in user_foods if f.name in st.session_state.recently_imported_foods]
+            st.info(f"Showing the {len(filtered_foods)} food(s) from your recent import. Your old food list has been replaced.")
+        else:
+            filtered_foods = user_foods
+
+        food_options = {f"({f.category}) {f.name} - {f.unit}": f for f in sorted(filtered_foods, key=lambda x: x.name)}
+
         with st.form("add_food_to_meal_form"):
             c1, c2, c3 = st.columns([3, 1, 1])
             with c1:
@@ -261,6 +275,7 @@ class MuscleTrackerApp:
             with c2:
                 # The value is read from session_state after the form is submitted.
                 st.number_input("Quantity", min_value=0.1, value=1.0, step=0.5, label_visibility="collapsed", key="meal_item_quantity")
+                st.number_input("Quantity", min_value=0.1, step=0.5, label_visibility="collapsed", key="meal_item_quantity")
             with c3:
                 add_food_btn = st.form_submit_button("➕ Add", use_container_width=True)
 
@@ -341,8 +356,8 @@ class MuscleTrackerApp:
         with col1:
             st.info("""
             **CSV Format Required:**
-            Use this feature to bulk-add new foods to your personal food database. This does not log meals.
-            - **Required Columns:** `name`, `category`, `unit`, `protein`, `carbs`, `fat`
+            **Warning:** This will **replace** your entire existing food list with the contents of the CSV file.
+            - **Columns:** `name`, `category`, `unit`, `protein`, `carbs`, `fat`
             - `protein`, `carbs`, and `fat` values should be in grams per the specified `unit`.
             - `calories` will be calculated automatically based on the macros.
             """)
@@ -381,21 +396,24 @@ class MuscleTrackerApp:
                 if st.button("Import Foods", use_container_width=True, key="import_foods_btn"):
                     # Reset buffer to the beginning before reading again in the backend
                     uploaded_file.seek(0)
-                    success, message = self.backend.import_foods_from_csv(
+                    success, result = self.backend.import_foods_from_csv(
                         st.session_state.user.id,
                         uploaded_file
                     )
                     if success:
+                        message, imported_food_names = result # result is now a tuple (message, list)
                         st.success(message)
+                        st.session_state.recently_imported_foods = imported_food_names
+                        st.info("Go to the 'Log Meal' page to use your new food list!")
                     else:
-                        st.error(message)
+                        st.error(result)
             
             except Exception as e:
                 st.error(f"Error reading CSV file: {str(e)}")
     
     def show_add_food(self):
         """Show manual food addition interface"""
-        st.markdown('<h2 class="sub-header">➕ Add New Food</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 class="sub-header">➕ Add or Update Foods</h2>', unsafe_allow_html=True)
         
         with st.form("add_food_form"):
             col1, col2 = st.columns(2)
@@ -438,6 +456,38 @@ class MuscleTrackerApp:
                         st.error(message)
                 else:
                     st.error("Please fill all required fields (*)")
+        
+        st.divider()
+        st.markdown("#### Or, Add/Update from CSV")
+        st.info("""
+        Upload a CSV to add new foods or update existing ones in your database.
+        - If a food name in the CSV matches one of your existing foods, it will be **updated**.
+        - If the food name is new, it will be **added**.
+        - This is a non-destructive way to bulk-edit your food list.
+        """)
+
+        uploaded_file = st.file_uploader(
+            "Choose a CSV file to add or update foods", 
+            type=['csv'],
+            key="add_update_csv"
+        )
+
+        if uploaded_file is not None:
+            if st.button("Process CSV File", use_container_width=True, key="process_csv_btn"):
+                # Reset buffer to the beginning before reading again in the backend
+                uploaded_file.seek(0)
+                success, result = self.backend.upsert_foods_from_csv(
+                    st.session_state.user.id,
+                    uploaded_file
+                )
+                if success:
+                    message, processed_food_names = result
+                    st.success(message)
+                    # Clear the filter from any previous "Import" action to ensure all foods are now visible.
+                    st.session_state.recently_imported_foods = None
+                    st.info("Go to the 'Log Meal' page to see the changes!")
+                else:
+                    st.error(result)
     
     def show_view_logs(self):
         """Show meal logs and nutrition history"""

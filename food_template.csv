@@ -1,4 +1,4 @@
 name,category,unit,protein,carbs,fat
-Sample Food,Grains & Carbs,100g,10,50,2
-Sample Protein,Proteins,100g,25,5,10
-Sample Vegetable,Vegetables,100g,2,10,1
+r,Grains & Carbs,100g,10,50,2
+t,Proteins,100g,25,5,10
+y,Vegetables,100g,2,10,1
