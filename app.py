@@ -64,11 +64,13 @@ class MuscleTrackerApp:
             st.session_state.meal_builder_items = []
         if 'form_success' not in st.session_state:
             st.session_state.form_success = False
+        if 'reset_quantity' not in st.session_state:
+            st.session_state.reset_quantity = False
     
     def run(self):
         """Main application runner"""
         # Header
-        st.markdown('<h1 class="main-header">💪 Diet Tracker</h1>', unsafe_allow_html=True)
+        st.markdown('<h1 class="main-header"> Diet Tracker</h1>', unsafe_allow_html=True)
         
         # Navigation
         if st.session_state.user:
@@ -225,6 +227,11 @@ class MuscleTrackerApp:
         """A professional, interactive meal logging interface using a 'shopping cart' model."""
         st.markdown('<h2 class="sub-header">🍽️ Log Meal</h2>', unsafe_allow_html=True)
 
+        # Check if we need to reset the quantity from the previous run
+        if st.session_state.get('reset_quantity', False):
+            st.session_state.meal_item_quantity = 1.0
+            st.session_state.reset_quantity = False
+
         # --- Step 1: Meal Context (Type and Date) ---
         st.markdown("#### Step 1: Set Meal Details")
         col1, col2 = st.columns(2)
@@ -247,22 +254,21 @@ class MuscleTrackerApp:
         user_foods = self.backend.get_user_foods(st.session_state.user.id)
         food_options = {f"({f.category}) {f.name} - {f.unit}": f for f in sorted(user_foods, key=lambda x: x.name)}
         
-        # Define a callback to safely reset the quantity input's state
-        def reset_quantity_callback():
-            st.session_state.meal_item_quantity = 1.0
-            
         with st.form("add_food_to_meal_form"):
             c1, c2, c3 = st.columns([3, 1, 1])
             with c1:
                 selected_food_key = st.selectbox("Search and select a food item", options=list(food_options.keys()), label_visibility="collapsed")
             with c2:
-                quantity = st.number_input("Quantity", min_value=0.1, value=1.0, step=0.5, label_visibility="collapsed", key="meal_item_quantity")
+                # The value is read from session_state after the form is submitted.
+                st.number_input("Quantity", min_value=0.1, value=1.0, step=0.5, label_visibility="collapsed", key="meal_item_quantity")
             with c3:
-                add_food_btn = st.form_submit_button("➕ Add", use_container_width=True, on_click=reset_quantity_callback)
+                add_food_btn = st.form_submit_button("➕ Add", use_container_width=True)
 
             if add_food_btn and selected_food_key:
                 selected_food = food_options[selected_food_key]
-                st.session_state.meal_builder_items.append({'food': selected_food, 'quantity': quantity})
+                # Read the quantity from session_state here to get the submitted value
+                st.session_state.meal_builder_items.append({'food': selected_food, 'quantity': st.session_state.meal_item_quantity})
+                st.session_state.reset_quantity = True # Set a flag to reset on the next run
                 st.rerun()
 
         st.divider()
