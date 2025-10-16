@@ -178,11 +178,17 @@ class MuscleTrackerBackend:
             if not all(col in df.columns for col in required_columns):
                 return False, "CSV missing required columns: name, category, unit, protein, carbs, fat"
             
-            # --- DESTRUCTIVE ACTION: Delete all existing foods for this user ---
+            # --- DESTRUCTIVE ACTION: Delete all meal logs and foods for this user ---
+            # Delete associated MealItems first due to foreign key constraints
+            meal_ids_query = session.query(Meal.id).filter(Meal.user_id == user_id)
+            session.query(MealItem).filter(MealItem.meal_id.in_(meal_ids_query)).delete(synchronize_session=False)
+            # Delete Meals
+            session.query(Meal).filter(Meal.user_id == user_id).delete(synchronize_session=False)
+            # Finally, delete all existing foods for the user
             session.query(Food).filter(Food.user_id == user_id).delete(synchronize_session=False)
             
             imported_count = 0
-            imported_food_names = []
+            imported_foods = []
             for _, row in df.iterrows():
                 # Clean the input name: remove leading/trailing whitespace
                 food_name_from_csv = str(row['name']).strip()
@@ -208,11 +214,11 @@ class MuscleTrackerBackend:
                     )
                     session.add(food)
                     imported_count += 1
-                    imported_food_names.append(food_name_from_csv)
+                    imported_foods.append(food_name_from_csv)
             
             session.commit()
             message = f"Success! Your food list has been replaced with {imported_count} new food(s) from your file."
-            return True, (message, imported_food_names)
+            return True, (message, imported_foods)
         except Exception as e:
             session.rollback()
             return False, f"Error importing foods: {str(e)}"
@@ -377,17 +383,18 @@ class MuscleTrackerBackend:
         data = []
         for meal in meals:
             for item in meal.items:
-                data.append({
-                    'date': meal.date,
-                    'meal_type': meal.meal_type,
-                    'food_name': item.food.name,
-                    'quantity': item.quantity,
-                    'protein': item.food.protein * item.quantity,
-                    'carbs': item.food.carbs * item.quantity,
-                    'fat': item.food.fat * item.quantity,
-                    'calories': item.food.calories * item.quantity,
-                    'logged_at': meal.created_at
-                })
+                if item.food: # Safety check for orphaned meal items
+                    data.append({
+                        'date': meal.date,
+                        'meal_type': meal.meal_type,
+                        'food_name': item.food.name,
+                        'quantity': item.quantity,
+                        'protein': item.food.protein * item.quantity,
+                        'carbs': item.food.carbs * item.quantity,
+                        'fat': item.food.fat * item.quantity,
+                        'calories': item.food.calories * item.quantity,
+                        'logged_at': meal.created_at
+                    })
         
         return pd.DataFrame(data)
     

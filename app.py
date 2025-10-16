@@ -211,15 +211,16 @@ class MuscleTrackerApp:
         if recent_meals:
             for meal in recent_meals:
                 with st.expander(f"{meal.meal_type} - {len(meal.items)} items"):
-                    total_protein = sum(item.food.protein * item.quantity for item in meal.items)
-                    total_carbs = sum(item.food.carbs * item.quantity for item in meal.items)
-                    total_fat = sum(item.food.fat * item.quantity for item in meal.items)
+                    total_protein = sum(item.food.protein * item.quantity for item in meal.items if item.food)
+                    total_carbs = sum(item.food.carbs * item.quantity for item in meal.items if item.food)
+                    total_fat = sum(item.food.fat * item.quantity for item in meal.items if item.food)
                     
                     col1, col2 = st.columns([2, 1])
                     with col1:
                         st.write("**Food Items:**")
                         for item in meal.items:
-                            st.write(f"- {item.quantity}x {item.food.name} ({item.food.unit})")
+                            if item.food: # Safety check
+                                st.write(f"- {item.quantity}x {item.food.name} ({item.food.unit})")
                     with col2:
                         st.write("**Nutrition:**")
                         st.write(f"Protein: {total_protein:.1f}g")
@@ -266,7 +267,7 @@ class MuscleTrackerApp:
         # Otherwise, show all user foods.
         if st.session_state.recently_imported_foods:
             user_foods = self.backend.get_user_foods(st.session_state.user.id)
-            filtered_foods = [f for f in user_foods if f.name in st.session_state.recently_imported_foods]
+            filtered_foods = [f for f in user_foods if f.name in st.session_state.recently_imported_foods] # This now compares names
             st.info(f"Showing the {len(filtered_foods)} food(s) from your recent import. Your old food list was replaced.")
             food_options = {f"({f.category}) {f.name} - {f.unit}": f for f in sorted(filtered_foods, key=lambda x: x.name)}
             # Show a simple form for imported foods
@@ -436,10 +437,11 @@ class MuscleTrackerApp:
                         uploaded_file
                     )
                     if success:
-                        message, imported_food_names = result # result is now a tuple (message, list)
+                        message, imported_food_names = result # result is now a tuple (message, list of names)
                         st.success(message)
                         st.session_state.recently_imported_foods = imported_food_names
                         st.info("Go to the 'Log Meal' page to use your new food list!")
+                        # The rerun is what was causing issues, so we are reverting this. A manual page refresh or re-navigation might be needed.
                     else:
                         st.error(result)
             
@@ -546,16 +548,17 @@ class MuscleTrackerApp:
             # Display logs
             for meal in filtered_logs:
                 with st.expander(f"{meal.date} - {meal.meal_type}"):
-                    total_protein = sum(item.food.protein * item.quantity for item in meal.items)
-                    total_carbs = sum(item.food.carbs * item.quantity for item in meal.items)
-                    total_fat = sum(item.food.fat * item.quantity for item in meal.items)
+                    total_protein = sum(item.food.protein * item.quantity for item in meal.items if item.food)
+                    total_carbs = sum(item.food.carbs * item.quantity for item in meal.items if item.food)
+                    total_fat = sum(item.food.fat * item.quantity for item in meal.items if item.food)
                     
                     col1, col2 = st.columns([2, 1])
                     
                     with col1:
                         st.write("**Food Items:**")
                         for item in meal.items:
-                            st.write(f"- {item.quantity}x {item.food.name} ({item.food.unit})")
+                            if item.food: # Safety check
+                                st.write(f"- {item.quantity}x {item.food.name} ({item.food.unit})")
                     
                     with col2:
                         st.write("**Nutrition:**")

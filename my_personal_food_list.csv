@@ -1,0 +1,34 @@
+name,category,unit,protein,carbs,fat
+Kerala rice,Grains & Carbs,100g cooked,2.5,28.0,0.3
+Whole wheat roti,Grains & Carbs,1 roti (~50g),4.0,18.0,1.0
+Oats (plain),Grains & Carbs,40g dry,5.2,27.0,2.0
+Soybean Symphony Biriyani,Cooked Dishes,1 cup (~200g),18.0,45.0,8.0
+Paneer biriyani,Cooked Dishes,1 cup (~200g),20.0,42.0,12.0
+Egg curry,Cooked Dishes,1 serving (~150g),12.0,5.0,10.0
+Potato curry,Cooked Dishes,1 serving (~150g),3.0,28.0,7.0
+Cabbage curry,Cooked Dishes,1 serving (~150g),4.0,15.0,4.0
+Green gram curry,Cooked Dishes,1 cup (~200g),14.0,30.0,2.0
+Dosa,Common Foods,1 dosa (~80g),3.0,22.0,3.0
+Appam (Kerala),Common Foods,1 appam (~70g),2.0,20.0,1.0
+Chutney (coconut),Common Foods,2 tbsp (~40g),1.0,3.0,4.0
+Chapathi,Common Foods,1 piece (~50g),4.0,18.0,1.0
+Poori,Common Foods,1 piece (~30g),2.0,15.0,5.0
+Custom Fusion Salad,Salads,1 serving (~150g),5.0,12.0,1.0
+Egg,Proteins,1 piece,6.0,0.3,5.0
+Soya chunks,Proteins,50g,35.0,10.0,1.0
+Toor/Moong dal,Proteins,100g cooked,9.0,20.0,0.8
+Chicken (skinless),Proteins,100g cooked,27.0,0.0,2.0
+Peanuts,Proteins,30g handful,7.0,3.0,20.0
+Whey protein scoop,Proteins,1 scoop (~30g),24.0,3.0,1.5
+Curd (low-fat),Dairy,100g,3.0,4.0,1.0
+Onion,Vegetables,100g,1.0,9.0,0.0
+Tomato,Vegetables,100g,0.5,3.5,0.0
+Cucumber,Vegetables,100g,0.4,1.6,0.0
+Carrot,Vegetables,100g,0.8,6.0,0.0
+Beans/Cabbage/Spinach,Vegetables,100g,2.5,6.0,0.0
+Banana,Fruits,1 medium (~100g),1.0,23.0,0.3
+Papaya,Fruits,1 cup (~150g),0.8,16.0,0.0
+Orange/Mosambi,Fruits,1 piece (~150g),0.9,12.0,0.1
+Guava,Fruits,1 medium (~100g),2.5,14.0,0.2
+Apple,Fruits,1 medium (~100g),0.3,14.0,0.2
+Grapes,Fruits,100g,0.6,17.0,0.2
