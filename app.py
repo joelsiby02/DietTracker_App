@@ -3,6 +3,8 @@ import pandas as pd
 from datetime import datetime, date
 from io import BytesIO
 import os
+from datetime import timedelta
+import streamlit_cookies_manager
 from backend import MuscleTrackerBackend
 
 # Page configuration
@@ -48,6 +50,7 @@ st.markdown("""
 class MuscleTrackerApp:
     def __init__(self):
         self.backend = MuscleTrackerBackend()
+        self.cookies = streamlit_cookies_manager.CookieManager()
         self.initialize_session_state()
     
     def initialize_session_state(self):
@@ -76,7 +79,16 @@ class MuscleTrackerApp:
         # Header
         st.markdown('<h1 class="main-header"> Diet Tracker</h1>', unsafe_allow_html=True)
         
-        # Navigation
+        # Auto-login check using cookies
+        if not st.session_state.user:
+            remember_me_token = self.cookies.get('remember_me_token')
+            if remember_me_token:
+                user = self.backend.validate_remember_me_token(remember_me_token)
+                if user:
+                    st.session_state.user = user
+                    st.rerun() # Rerun to show the main app
+        
+        # Main navigation
         if st.session_state.user:
             self.show_main_app()
         else:
@@ -91,12 +103,18 @@ class MuscleTrackerApp:
             with st.form("login_form"):
                 username = st.text_input("Username")
                 password = st.text_input("Password", type="password")
+                remember_me = st.checkbox("Remember me")
                 login_btn = st.form_submit_button("Login")
                 
                 if login_btn:
                     if username and password:
                         success, result = self.backend.authenticate_user(username, password)
                         if success:
+                            if remember_me:
+                                token = self.backend.create_remember_me_token(result.id)
+                                if token:
+                                    # Use dictionary-style assignment to set the cookie
+                                    self.cookies['remember_me_token'] = token
                             st.session_state.user = result
                             st.success("Login successful!")
                             st.rerun()
@@ -155,6 +173,11 @@ class MuscleTrackerApp:
             # Logout button
             st.divider()
             if st.button("Logout", use_container_width=True):
+                # Delete the remember me token from DB and cookie
+                token = self.cookies.get('remember_me_token')
+                self.backend.delete_remember_me_token(token)
+                if 'remember_me_token' in self.cookies:
+                    del self.cookies['remember_me_token']
                 st.session_state.user = None
                 st.session_state.meal_items = []
                 st.session_state.meal_builder_items = []

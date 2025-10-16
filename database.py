@@ -1,7 +1,7 @@
 import sqlalchemy as db
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, backref
 from datetime import datetime
 import bcrypt
 import os
@@ -18,8 +18,9 @@ class User(Base):
     
     # Relationships
     foods = relationship("Food", back_populates="user")
-    meals = relationship("Meal", back_populates="user")
+    meals = relationship("Meal", back_populates="user", cascade="all, delete-orphan")
     sleep_logs = relationship("SleepLog", back_populates="user")
+    auth_tokens = relationship("AuthToken", back_populates="user", cascade="all, delete-orphan")
     
     def set_password(self, password):
         self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -43,7 +44,7 @@ class Food(Base):
     
     # Relationships
     user = relationship("User", back_populates="foods")
-    meal_items = relationship("MealItem", back_populates="food")
+    meal_items = relationship("MealItem", back_populates="food", cascade="all, delete-orphan")
 
 class Meal(Base):
     __tablename__ = 'meals'
@@ -56,7 +57,7 @@ class Meal(Base):
     
     # Relationships
     user = relationship("User", back_populates="meals")
-    items = relationship("MealItem", back_populates="meal")
+    items = relationship("MealItem", back_populates="meal", cascade="all, delete-orphan")
 
 class MealItem(Base):
     __tablename__ = 'meal_items'
@@ -83,6 +84,17 @@ class SleepLog(Base):
     
     # Relationships
     user = relationship("User", back_populates="sleep_logs")
+
+class AuthToken(Base):
+    __tablename__ = 'auth_tokens'
+
+    id = Column(Integer, primary_key=True)
+    token_hash = Column(String(255), unique=True, nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+
+    user = relationship("User", back_populates="auth_tokens")
 
 # Database setup
 def init_db():

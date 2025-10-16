@@ -1,10 +1,11 @@
 import pandas as pd
 from sqlalchemy import and_, func
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from sqlalchemy.orm import selectinload
 import os
-from database import get_session, User, Food, Meal, MealItem, SleepLog
-
+import secrets
+import hashlib
+from database import get_session, User, Food, Meal, MealItem, SleepLog, AuthToken
 class MuscleTrackerBackend:
     def __init__(self):
         pass  # Session will be created per-method
@@ -41,6 +42,55 @@ class MuscleTrackerBackend:
             if user and user.check_password(password):
                 return True, user
             return False, "Invalid username or password"
+        finally:
+            session.close()
+
+    def create_remember_me_token(self, user_id):
+        """Create a secure token for 'Remember Me' functionality."""
+        session = get_session()
+        try:
+            token = secrets.token_hex(32)
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            expires_at = datetime.utcnow() + timedelta(days=30)
+
+            new_token = AuthToken(
+                token_hash=token_hash,
+                user_id=user_id,
+                expires_at=expires_at
+            )
+            session.add(new_token)
+            session.commit()
+            return token # Return the raw token to be stored in the cookie
+        except Exception:
+            session.rollback()
+            return None
+        finally:
+            session.close()
+
+    def validate_remember_me_token(self, token):
+        """Validate a token from a cookie and return the user if it's valid."""
+        if not token:
+            return None
+        session = get_session()
+        try:
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            auth_token = session.query(AuthToken).filter_by(token_hash=token_hash).first()
+
+            if auth_token and auth_token.expires_at > datetime.utcnow():
+                return auth_token.user
+            return None
+        finally:
+            session.close()
+
+    def delete_remember_me_token(self, token):
+        """Delete a token from the database upon logout."""
+        if not token:
+            return
+        session = get_session()
+        try:
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            session.query(AuthToken).filter_by(token_hash=token_hash).delete()
+            session.commit()
         finally:
             session.close()
     
@@ -393,7 +443,7 @@ class MuscleTrackerBackend:
                         'carbs': item.food.carbs * item.quantity,
                         'fat': item.food.fat * item.quantity,
                         'calories': item.food.calories * item.quantity,
-                        'logged_at': meal.created_at
+                        'logged_at': meal.created_at,
                     })
         
         return pd.DataFrame(data)
