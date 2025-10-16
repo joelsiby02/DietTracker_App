@@ -256,35 +256,70 @@ class MuscleTrackerApp:
 
         # --- Step 2: Add Foods to the Meal ---
         st.markdown("#### Step 2: Add Foods")
-        user_foods = self.backend.get_user_foods(st.session_state.user.id)
+        st.caption("""
+        **How to use Quantity:** The 'Quantity' is a multiplier for the food's standard unit. 
+        - If a food's unit is `100g` and you ate `50g`, enter a quantity of `0.5`.
+        - If a food's unit is `1 roti` and you ate `2`, enter a quantity of `2`.
+        """)
 
         # If foods were recently imported, filter the list to show only those.
         # Otherwise, show all user foods.
         if st.session_state.recently_imported_foods:
+            user_foods = self.backend.get_user_foods(st.session_state.user.id)
             filtered_foods = [f for f in user_foods if f.name in st.session_state.recently_imported_foods]
-            st.info(f"Showing the {len(filtered_foods)} food(s) from your recent import. Your old food list has been replaced.")
+            st.info(f"Showing the {len(filtered_foods)} food(s) from your recent import. Your old food list was replaced.")
+            food_options = {f"({f.category}) {f.name} - {f.unit}": f for f in sorted(filtered_foods, key=lambda x: x.name)}
+            # Show a simple form for imported foods
+            with st.form("add_food_to_meal_form"):
+                c1, c2, c3 = st.columns([3, 1, 1])
+                with c1:
+                    selected_food_key = st.selectbox("Search and select a food item", options=list(food_options.keys()), label_visibility="collapsed")
+                with c2:
+                    st.number_input("Quantity", min_value=0.1, step=0.5, label_visibility="collapsed", key="meal_item_quantity")
+                with c3:
+                    add_food_btn = st.form_submit_button("➕ Add", use_container_width=True)
+                if add_food_btn and selected_food_key:
+                    selected_food = food_options[selected_food_key]
+                    st.session_state.meal_builder_items.append({'food': selected_food, 'quantity': st.session_state.meal_item_quantity})
+                    st.session_state.reset_quantity = True
+                    st.rerun()
         else:
-            filtered_foods = user_foods
+            # --- New Visual Food Browser ---
+            user_foods = self.backend.get_user_foods(st.session_state.user.id)
+            foods_by_category = {}
+            for food in user_foods:
+                if food.category not in foods_by_category:
+                    foods_by_category[food.category] = []
+                foods_by_category[food.category].append(food)
 
-        food_options = {f"({f.category}) {f.name} - {f.unit}": f for f in sorted(filtered_foods, key=lambda x: x.name)}
+            # Search bar
+            search_term = st.text_input("🔍 Search all foods...", placeholder="e.g., chicken, rice, egg")
 
-        with st.form("add_food_to_meal_form"):
-            c1, c2, c3 = st.columns([3, 1, 1])
-            with c1:
-                selected_food_key = st.selectbox("Search and select a food item", options=list(food_options.keys()), label_visibility="collapsed")
-            with c2:
-                # The value is read from session_state after the form is submitted.
-                st.number_input("Quantity", min_value=0.1, value=1.0, step=0.5, label_visibility="collapsed", key="meal_item_quantity")
-                st.number_input("Quantity", min_value=0.1, step=0.5, label_visibility="collapsed", key="meal_item_quantity")
-            with c3:
-                add_food_btn = st.form_submit_button("➕ Add", use_container_width=True)
-
-            if add_food_btn and selected_food_key:
-                selected_food = food_options[selected_food_key]
-                # Read the quantity from session_state here to get the submitted value
-                st.session_state.meal_builder_items.append({'food': selected_food, 'quantity': st.session_state.meal_item_quantity})
-                st.session_state.reset_quantity = True # Set a flag to reset on the next run
-                st.rerun()
+            if search_term:
+                # Display search results
+                search_results = [f for f in user_foods if search_term.lower() in f.name.lower()]
+                if not search_results:
+                    st.info("No foods found matching your search.")
+                else:
+                    st.write(f"Found {len(search_results)} matching food(s):")
+                    for food in search_results:
+                        c1, c2, c3 = st.columns([4, 2, 1])
+                        c1.write(f"**{food.name}** ({food.unit})")
+                        quantity = c2.number_input("Qty", min_value=0.1, value=1.0, step=0.25, key=f"qty_search_{food.id}", label_visibility="collapsed")
+                        if c3.button("➕", key=f"add_search_{food.id}", use_container_width=True):
+                            st.session_state.meal_builder_items.append({'food': food, 'quantity': quantity})
+                            st.rerun()
+            else:
+                # Display categorized foods
+                for category, foods in sorted(foods_by_category.items()):
+                    with st.expander(f"**{category}** ({len(foods)} items)"):
+                        for food in sorted(foods, key=lambda x: x.name):
+                            c1, c2, c3 = st.columns([4, 2, 1])
+                            c1.write(f"**{food.name}** ({food.unit})")
+                            quantity = c2.number_input("Qty", min_value=0.1, value=1.0, step=0.25, key=f"qty_cat_{food.id}", label_visibility="collapsed")
+                            if c3.button("➕", key=f"add_cat_{food.id}", use_container_width=True):
+                                st.session_state.meal_builder_items.append({'food': food, 'quantity': quantity})
+                                st.rerun()
 
         st.divider()
 
